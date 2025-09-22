@@ -4,6 +4,7 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 
 from windows.task1_window import Task1Window
+from windows.task2_window import Task2Window
 from windows.task3_window import Task3Window
 
 
@@ -47,6 +48,15 @@ class Lab2:
             bg="#555",
             fg="white",
         )
+        # task2
+        self.task2_button = tk.Button(
+            root,
+            text="task2",
+            command=self.task2,
+            bg="#555",
+            fg="white",
+        )
+
         # task3
         self.task3_button = tk.Button(
             root,
@@ -55,7 +65,6 @@ class Lab2:
             bg="#555",
             fg="white",
         )
-
 
         self.path_label.grid(row=0, column=0, columnspan=3, pady=3, sticky="nsew")
         self.root.grid_columnconfigure(0, weight=1)
@@ -85,8 +94,8 @@ class Lab2:
             self.root.geometry(f"{image.width()}x{image.height() + 185}")
 
             self.task1_button.grid(row=5, column=0, pady=2, columnspan=3, sticky="nsew")
+            self.task2_button.grid(row=6, column=0, pady=2, columnspan=3, sticky="nsew")
             self.task3_button.grid(row=7, column=0, pady=2, columnspan=3, sticky="nsew")
-
 
         except Exception as e:
             print("Error loading image:", e)
@@ -110,10 +119,14 @@ class Lab2:
     def task1(self):
         child = tk.Tk()
         task1_window = Task1Window(root=child, parent=self)
+
+    def task2(self):
+        child = tk.Tk()
+        task2_window = Task2Window(root=child, parent=self)
+
     def task3(self):
         child = tk.Toplevel()
         task3_window = Task3Window(root=child, parent=self)
-
 
 
 if __name__ == "__main__":
