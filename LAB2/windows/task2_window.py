@@ -1,7 +1,6 @@
 import os
 import tkinter as tk
 import numpy as np
-
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -11,7 +10,7 @@ class Task2Window:
         self.root = root
         self.parent = parent
         self.root.configure(bg=parent.back_ground)
-        self.root.geometry("230x40+500+20")
+        self.root.geometry("230x80+500+20")
         self.root.title("task2")
 
         self.start_button = tk.Button(
@@ -27,6 +26,7 @@ class Task2Window:
         self.start_button.grid(
             row=1, column=0, columnspan=2, padx=10, pady=10, sticky="nsew"
         )
+        self.delete_button = None
 
     def start(self):
         image = Image.open(self.parent.path_entry.get())
@@ -53,7 +53,6 @@ class Task2Window:
         Image.fromarray(G_image).save(g_path)
         Image.fromarray(B_image).save(b_path)
 
-        # --- Построение гистограмм ---
         fig, axs = plt.subplots(1, 3, figsize=(18, 5))
 
         r_hist = [0] * 256
@@ -76,6 +75,28 @@ class Task2Window:
 
         plt.show()
 
+        if self.delete_button is None:
+            self.delete_button = tk.Button(
+                self.root,
+                text="Удалить файлы",
+                command=self.delete_files,
+                width=20,
+                bg="#555",
+                fg="white",
+            )
+            self.delete_button.grid(
+                row=2, column=0, columnspan=2, padx=10, pady=5, sticky="nsew"
+            )
+
+    def delete_files(self):
+        output_dir = os.path.join(self.parent.output_path, "task2")
+        r_path = os.path.join(output_dir, "R_channel.jpg")
+        g_path = os.path.join(output_dir, "G_channel.jpg")
+        b_path = os.path.join(output_dir, "B_channel.jpg")
+
         for path in [r_path, g_path, b_path]:
             if os.path.exists(path):
                 os.remove(path)
+        if self.delete_button:
+            self.delete_button.destroy()
+            self.delete_button = None
