@@ -45,29 +45,37 @@ class Task2Window:
         output_dir = os.path.join(self.parent.output_path, "task2")
         os.makedirs(output_dir, exist_ok=True)
 
-        Image.fromarray(R_image).save(os.path.join(output_dir, "R_channel.jpg"))
-        Image.fromarray(G_image).save(os.path.join(output_dir, "G_channel.jpg"))
-        Image.fromarray(B_image).save(os.path.join(output_dir, "B_channel.jpg"))
+        r_path = os.path.join(output_dir, "R_channel.jpg")
+        g_path = os.path.join(output_dir, "G_channel.jpg")
+        b_path = os.path.join(output_dir, "B_channel.jpg")
 
+        Image.fromarray(R_image).save(r_path)
+        Image.fromarray(G_image).save(g_path)
+        Image.fromarray(B_image).save(b_path)
+
+        # --- Построение гистограмм ---
         fig, axs = plt.subplots(1, 3, figsize=(18, 5))
 
         r_hist = [0] * 256
         for value in R.ravel():
             r_hist[value] += 1
         axs[0].bar(range(256), r_hist, color="red", alpha=0.6)
-        axs[0].set_title("hexagram for R-сhanel")
+        axs[0].set_title("Histogram for R-channel")
 
         g_hist = [0] * 256
         for value in G.ravel():
             g_hist[value] += 1
         axs[1].bar(range(256), g_hist, color="green", alpha=0.6)
-        axs[1].set_title("hexagram for G-сhanel")
+        axs[1].set_title("Histogram for G-channel")
 
         b_hist = [0] * 256
         for value in B.ravel():
             b_hist[value] += 1
         axs[2].bar(range(256), b_hist, color="blue", alpha=0.6)
-        axs[2].set_title("hexagram for B-сhanel")
+        axs[2].set_title("Histogram for B-channel")
 
         plt.show()
-        return
+
+        for path in [r_path, g_path, b_path]:
+            if os.path.exists(path):
+                os.remove(path)
