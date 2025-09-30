@@ -1,7 +1,7 @@
 import tkinter as tk
 
 from windows.task1_window import Task1Window
-
+from windows.task3_window import Task3Window
 
 
 class Lab3:
@@ -22,15 +22,26 @@ class Lab3:
             fg="white",
             width=100,
         )
-
+         # task3
+        self.task3_button = tk.Button(
+            root,
+            text="task3",
+            command=self.task3,
+            bg="#555",
+            fg="white",
+            width=100,
+        )
 
         self.task1_button.pack(pady=5, padx=5)
+        self.task3_button.pack(pady=5, padx=5)
 
 
     def task1(self):
         child = tk.Tk()
         task1_window = Task1Window(root=child, parent=self)
-
+    def task3(self):
+        child = tk.Tk()
+        task3_window = Task3Window(root=child, parent=self)
 
 
 
