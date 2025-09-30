@@ -52,11 +52,11 @@ class Task1Window:
 
     def task1b(self):
         child = tk.Tk()
-        task1a_window = Task1bWindow(root=child, parent=self)
+        task1b_window = Task1bWindow(root=child, parent=self)
 
     def task1c(self):
         child = tk.Tk()
-        task1a_window = Task1cWindow(root=child, parent=self)
+        task1c_window = Task1cWindow(root=child, parent=self)
 
 
 class Task1aWindow:
@@ -69,9 +69,10 @@ class Task1aWindow:
         self.root.title("task1a")
         self.canvas = tk.Canvas(self.root, width=self.width, height=self.height)
 
-        self.frames_for_update = 1000
-
+        # границы,
         self.boarders = set()
+
+        # уже закрашены
         self.passed_val = set()
 
         self.fill_button = tk.Button(
@@ -91,61 +92,24 @@ class Task1aWindow:
 
     def fill(self):
         self.canvas.unbind("<B1-Motion>")
-        self.canvas.bind("<B1-Motion>", self.stack_fill_lines)
+        self.canvas.bind("<Button-1>", self.recursive_line_fill)
 
     def check_validity(self, x, y):
-        if (
-            (x, y) not in self.boarders
-            and (x, y) not in self.passed_val
-            and x > 0
-            and x < self.width - 2
-            and y > 0
-            and y < self.height - 2
-        ):
-            return True
-        else:
-            return False
+        return(
+                (x, y) not in self.boarders
+                and (x, y) not in self.passed_val
+                and 0 < x < self.width - 2
+                and 0 < y < self.height - 2
+        )
 
-    def stack_fill(self, event):
-        self.canvas.unbind("<B1-Motion>")
-        x_start, y_start = event.x, event.y
-        stack = [(x_start, y_start)]
-        frames_count = 0
-        while stack:
-            frames_count += 1
-            x, y = stack.pop()
-            self.canvas.create_oval(x, y, x + 1, y + 1, fill="red", outline="red")
-            if frames_count % self.frames_for_update == 0:
-                self.root.update()
-            if self.check_validity(x + 1, y):
-                self.passed_val.add((x + 1, y))
-                stack.append((x + 1, y))
 
-            if self.check_validity(x - 1, y):
-                self.passed_val.add((x - 1, y))
-                stack.append((x - 1, y))
+    def recursive_line_fill(self, event):
+        self.canvas.unbind("<Button-1>")
+        x, y = event.x, event.y
 
-            if self.check_validity(x, y + 1):
-                self.passed_val.add((x, y + 1))
-                stack.append((x, y + 1))
-
-            if self.check_validity(x, y - 1):
-                self.passed_val.add((x, y - 1))
-                stack.append((x, y - 1))
-
-        print("Done")
-        self.canvas.bind("<B1-Motion>", self.paint)
-        return
-
-    def stack_fill_lines(self, event):
-        self.canvas.unbind("<B1-Motion>")
-        x_start, y_start = event.x, event.y
-        stack = [(x_start, y_start)]
-        pixel_count = 0
-
-        while stack:
-            pixel_count += 1
-            x, y = stack.pop()
+        def fill_scanline(x, y):
+            if not self.check_validity(x, y):
+                return
 
             x_left = x
             while self.check_validity(x_left - 1, y):
@@ -160,48 +124,15 @@ class Task1aWindow:
             for nx in range(x_left, x_right + 1):
                 self.passed_val.add((nx, y))
 
-            if pixel_count % self.frames_for_update == 0:
-                self.root.update()
+            self.root.update()  # Обновление для избежания зависаний
 
             for nx in range(x_left, x_right + 1):
-                if self.check_validity(nx, y + 1):
-                    stack.append((nx, y + 1))
+                fill_scanline(nx, y + 1)
+                fill_scanline(nx, y - 1)
 
-                if self.check_validity(nx, y - 1):
-                    stack.append((nx, y - 1))
-
+        fill_scanline(x, y)
         print("Done")
         self.canvas.bind("<B1-Motion>", self.paint)
-
-    def rec_fill(self, event):
-        passed_val = set()
-        self.canvas.unbind("<B1-Motion>")
-        x_start, y_start = event.x, event.y
-
-        def f(self: Task1aWindow, x, y):
-            self.canvas.create_oval(x, y, x + 1, y + 1, fill="red", outline="red")
-            self.canvas.update()
-
-            if self.check_validity(x + 1, y):
-                passed_val.add((x + 1, y))
-                f(self, x + 1, y)
-
-            if self.check_validity(x - 1, y):
-                passed_val.add((x - 1, y))
-                f(self, x - 1, y)
-
-            if self.check_validity(x, y + 1):
-                passed_val.add((x, y + 1))
-                f(self, x, y + 1)
-
-            if self.check_validity(x, y - 1):
-                passed_val.add((x, y - 1))
-                f(self, x, y - 1)
-
-        f(self=self, x=x_start, y=y_start)
-        print("Done")
-        self.canvas.bind("<B1-Motion>", self.paint)
-        return
 
     def paint(self, event):
         self.last_x, self.last_y = event.x, event.y
@@ -238,7 +169,6 @@ class Task1bWindow:
         self.canvas = tk.Canvas(self.root, width=self.width, height=self.height)
         self.image_path = ""
         self.image = None
-        self.frames_for_update = 1000
 
         self.boarders = set()
         self.passed_val = set()
@@ -278,67 +208,32 @@ class Task1bWindow:
 
     def fill(self):
         self.canvas.unbind("<B1-Motion>")
-        self.canvas.bind("<B1-Motion>", self.stack_fill_lines)
+        self.canvas.bind("<Button-1>", self.recursive_line_fill)
 
     def check_validity(self, x, y):
-        if (
-            (x, y) not in self.boarders
-            and (x, y) not in self.passed_val
-            and x > 0
-            and x < self.width - 2
-            and y > 0
-            and y < self.height - 2
-        ):
-            return True
-        else:
-            return False
+        return(
+                (x, y) not in self.boarders
+                and (x, y) not in self.passed_val
+                and self.width - 2 > x > 0 < y < self.height - 2
+        )
+
 
     def get_hex_pixel(self, x, y):
         r, g, b = self.image.getpixel((x % self.image.width, y % self.image.height))
         return "#{:02x}{:02x}{:02x}".format(r, g, b)
 
-    def stack_fill(self, event):
-        self.canvas.unbind("<B1-Motion>")
-        x_start, y_start = event.x, event.y
-        stack = [(x_start, y_start)]
+    def recursive_line_fill(self, event):
+        self.canvas.unbind("<Button-1>")
+        x, y = event.x, event.y
 
-        frame_count = 0
-        while stack:
-            frame_count += 1
-            x, y = stack.pop()
-            color = self.get_hex_pixel(x, y)
-            self.canvas.create_oval(x, y, x + 1, y + 1, fill=color, outline=color)
-            if frame_count % self.frames_for_update == 0:
-                self.canvas.update()
-            if self.check_validity(x + 1, y):
-                self.passed_val.add((x + 1, y))
-                stack.append((x + 1, y))
+        if self.image is None:
+            print("Загрузите изображение для паттерна")
+            self.canvas.bind("<B1-Motion>", self.paint)
+            return
 
-            if self.check_validity(x - 1, y):
-                self.passed_val.add((x - 1, y))
-                stack.append((x - 1, y))
-
-            if self.check_validity(x, y + 1):
-                self.passed_val.add((x, y + 1))
-                stack.append((x, y + 1))
-
-            if self.check_validity(x, y - 1):
-                self.passed_val.add((x, y - 1))
-                stack.append((x, y - 1))
-
-        print("Done")
-        self.canvas.bind("<B1-Motion>", self.paint)
-        return
-
-    def stack_fill_lines(self, event):
-        self.canvas.unbind("<B1-Motion>")
-        x_start, y_start = event.x, event.y
-        stack = [(x_start, y_start)]
-        pixel_count = 0
-
-        while stack:
-            pixel_count += 1
-            x, y = stack.pop()
+        def fill_scanline(x, y):
+            if not self.check_validity(x, y):
+                return
 
             x_left = x
             while self.check_validity(x_left - 1, y):
@@ -353,20 +248,15 @@ class Task1bWindow:
                 self.canvas.create_oval(
                     nx, y, nx + 1, y + 1, fill=img_color, outline=img_color
                 )
-
-            for nx in range(x_left, x_right + 1):
                 self.passed_val.add((nx, y))
 
-            if pixel_count % self.frames_for_update == 0:
-                self.root.update()
+            self.root.update()
 
             for nx in range(x_left, x_right + 1):
-                if self.check_validity(nx, y + 1):
-                    stack.append((nx, y + 1))
+                fill_scanline(nx, y + 1)
+                fill_scanline(nx, y - 1)
 
-                if self.check_validity(nx, y - 1):
-                    stack.append((nx, y - 1))
-
+        fill_scanline(x, y)
         print("Done")
         self.canvas.bind("<B1-Motion>", self.paint)
 
@@ -398,13 +288,11 @@ class Task1cWindow:
         self.root = root
         self.parent = parent
         self.root.configure(bg=parent.back_ground)
-        self.frames_for_update = 10000
         self.passed_val = set()
         self.color_for_fill = "#00CCCC"
 
         self.root.title("Task1c")
 
-        self.image_tk = None
         self.image = None
 
         self.browse_button = tk.Button(
@@ -419,9 +307,7 @@ class Task1cWindow:
 
         self.canvas = tk.Canvas(self.root)
         self.canvas.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
-        self.image_tk = None
-        self.image = None
-        self.canvas.bind("<B1-Motion>", self.connected_area)
+        self.canvas.bind("<Button-1>", self.boundary_trace)
 
     def browse_file(self):
         filename = filedialog.askopenfilename(
@@ -431,38 +317,28 @@ class Task1cWindow:
             self.image_path = filename
             self.image = Image.open(self.image_path)
 
-            # Resize the image if necessary
             max_size = 500
             if self.image.width > max_size or self.image.height > max_size:
                 ratio = min(max_size / self.image.width, max_size / self.image.height)
                 new_width = int(self.image.width * ratio)
                 new_height = int(self.image.height * ratio)
                 self.image = self.image.resize((new_width, new_height), Image.LANCZOS)
-                self.width, self.height = self.image.size
-                self.canvas.config(width=self.width, height=self.height)
-                self.canvas.delete("all")
-                self.draw_image()
-            else:
 
-                self.width, self.height = self.image.size
-                self.canvas.config(width=self.width, height=self.height)
-                self.canvas.delete("all")
-                self.draw_image()
+            self.width, self.height = self.image.size
+            self.canvas.config(width=self.width, height=self.height)
+            self.canvas.delete("all")
+            self.draw_image()
 
     def draw_image(self):
-        frames_count = 0
         for x in range(self.width):
             for y in range(self.height):
-                frames_count += 1
-                if frames_count % self.frames_for_update == 0:
-                    self.root.update()
                 r, g, b = self.image.getpixel((x, y))
                 hex_color = f"#{r:02x}{g:02x}{b:02x}"
-
                 self.canvas.create_rectangle(
                     x, y, x + 1, y + 1, outline=hex_color, fill=hex_color
                 )
 
+    # Если она не помечена, внутри картинки и цвет точно совпадает с color
     def check_validity_and_color(self, x, y, color):
         if (
             (x, y) not in self.passed_val
@@ -471,11 +347,11 @@ class Task1cWindow:
         ):
             r, g, b = self.image.getpixel((x, y))
             current_color = f"#{r:02x}{g:02x}{b:02x}"
-
             return current_color == color
         else:
             return False
 
+    #проверяет, похож ли цвет
     def check_validity_and_color_in_range(self, x, y, color, threshold=50):
         if (
             (x, y) not in self.passed_val
@@ -500,49 +376,76 @@ class Task1cWindow:
         else:
             return False
 
-    def connected_area(self, event):
-        # check_function = self.check_validity_and_color
-        check_function = self.check_validity_and_color_in_range
-        self.canvas.unbind("<B1-Motion>")
-        x_start, y_start = event.x, event.y
+    #Если хоть один сосед имеет другой цвет
+    def is_boundary_pixel(self, x, y, color):
+        directions = [(0,1), (1,1), (1,0), (1,-1), (0,-1), (-1,-1), (-1,0), (-1,1)]
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < self.width and 0 <= ny < self.height:
+                r, g, b = self.image.getpixel((nx, ny))
+                n_color = f"#{r:02x}{g:02x}{b:02x}"
+                if n_color != color:
+                    return True
+        return False
 
-        r, g, b = self.image.getpixel((x_start, y_start))
+    def boundary_trace(self, event):
+        x, y = event.x, event.y
+
+        r, g, b = self.image.getpixel((x, y))
         color = f"#{r:02x}{g:02x}{b:02x}"
 
-        stack = [(x_start, y_start)]
-        self.passed_val.add((x_start, y_start))
+        if not self.is_boundary_pixel(x, y, color):
+            print("Щелчок не на граничном пикселе")
+            return
+
+        boundary = []
+
+        directions = [(0,1), (1,1), (1,0), (1,-1), (0,-1), (-1,-1), (-1,0), (-1,1)]
+
+        cur_x, cur_y = x, y
+
+        if not self.check_validity_and_color_in_range(cur_x, cur_y, color):
+            print("Щелчок не на границе")
+            return
+
+        self.passed_val.add((cur_x, cur_y))
+        boundary.append((cur_x, cur_y))
+
+        back_dir = 4  # Начальный back - с запада
 
         frames_count = 0
-        while stack:
-            x, y = stack.pop()
+
+        while True:
+            found = False
+            start_dir = (back_dir + 2) % 8  # Право от back для clockwise
+
+            for i in range(8):
+                d = (start_dir + i) % 8
+                nx = cur_x + directions[d][0]
+                ny = cur_y + directions[d][1]
+                if self.check_validity_and_color_in_range(nx, ny, color) and self.is_boundary_pixel(nx, ny, color):
+                    boundary.append((nx, ny))
+                    self.passed_val.add((nx, ny))
+                    cur_x, cur_y = nx, ny
+                    back_dir = (d + 4) % 8
+                    found = True
+
+                    frames_count += 1
+                    if frames_count % 100 == 0:
+                        self.root.update()
+
+                    break
+
+            if not found:
+                break
+
+            if cur_x == x and cur_y == y and len(boundary) > 2:
+                break
+
+        # Прорисовка границы поверх
+        for px, py in boundary:
             self.canvas.create_oval(
-                x,
-                y,
-                x + 1,
-                y + 1,
-                fill=self.color_for_fill,
-                outline=self.color_for_fill,
+                px, py, px + 1, py + 1, fill=self.color_for_fill, outline=self.color_for_fill
             )
-            frames_count += 1
-            if frames_count % (self.frames_for_update // 10) == 0:
-                self.root.update()
 
-            if check_function(x + 1, y, color):
-                self.passed_val.add((x + 1, y))
-                stack.append((x + 1, y))
-
-            if check_function(x - 1, y, color):
-                self.passed_val.add((x - 1, y))
-                stack.append((x - 1, y))
-
-            if check_function(x, y + 1, color):
-                self.passed_val.add((x, y + 1))
-                stack.append((x, y + 1))
-
-            if check_function(x, y - 1, color):
-                self.passed_val.add((x, y - 1))
-                stack.append((x, y - 1))
-
-        print("Done")
-        self.canvas.bind("<B1-Motion>", self.connected_area)
-        return
+        print("Done, граница:", len(boundary), "точек")
