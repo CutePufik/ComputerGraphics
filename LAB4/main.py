@@ -99,29 +99,53 @@ class PolygonEditor:
         return None
 
     def add_point(self, event):
-        """Добавление вершины полигона"""
+        """Создание полигонов кликами мышью.
+        Точка и ребро считаются полигонами с одной и двумя вершинами соответственно.
+        ЛКМ — добавить точку, ПКМ — завершить текущий полигон (замкнёт его автоматически).
+        """
         x, y = event.x, event.y
         self.current_polygon.append((x, y))
+
+        # Нарисовать вершину
         self.canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill="black")
 
+        # Соединить текущую точку с предыдущей
         if len(self.current_polygon) > 1:
             self.canvas.create_line(
                 self.current_polygon[-2], self.current_polygon[-1], fill="black"
             )
 
-        if len(self.current_polygon) == 2:
-            self.selected_polygon = (
-                self.current_polygon
-            )  # временно, как текущий полигон
-            self.polygons.append(self.current_polygon)
+        # Добавить в список полигонов
+        if self.current_polygon not in self.polygons:
+            self.polygons.append(self.current_polygon.copy())
+        else:
+            self.polygons[-1] = self.current_polygon.copy()
+
+        # Правый клик завершает полигон
+        self.canvas.bind("<Button-3>", self.finish_polygon)
+
+    def finish_polygon(self, event):
+        """Завершение и автоматическое замыкание полигона"""
+        if self.current_polygon:
+            if len(self.current_polygon) > 1:
+                # Замыкаем полигон — соединяем последнюю и первую вершины
+                first_point = self.current_polygon[0]
+                last_point = self.current_polygon[-1]
+                self.canvas.create_line(last_point, first_point, fill="black")
+
+            # Сохраняем полигон и делаем его текущим выбранным
+            self.selected_polygon = self.current_polygon
+            self.current_polygon = []
+            self.status_label.config(text="Полигон замкнут и сохранён")
 
     def clear_scene(self):
-        """Очистка сцены"""
+        """Очистка сцены (удаление всех полигонов и точек)"""
         self.canvas.delete("all")
         self.polygons.clear()
-        self.current_polygon = []
+        self.current_polygon.clear()
+        self.selected_polygon = None
         self.status_label.config(text="Сцена очищена")
-        self.message_window.delete(1.0, tk.END)  # Очистка окна сообщений
+        self.message_window.delete(1.0, tk.END)
 
     def translate(self):
         """Смещение полигона на dx, dy"""
