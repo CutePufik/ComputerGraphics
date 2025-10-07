@@ -13,9 +13,7 @@ class PolygonEditor:
         control_frame = tk.Frame(root)
         control_frame.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.status_label = tk.Label(
-            control_frame, text="Выберите действие", font=("Arial", 12)
-        )
+        self.status_label = tk.Label(control_frame, text="Выберите действие", font=("Arial", 12))
         self.status_label.pack(pady=10)
 
         # Поля для ввода смещения
@@ -30,12 +28,9 @@ class PolygonEditor:
         self.angle_entry = self.create_labeled_entry(control_frame, "Угол (градусы):")
 
         # Поля для ввода точки вращения и масштабирования
-        self.status_label = tk.Label(
-            control_frame, text="Точка вращения и масштабирования", font=("Arial", 12)
-        )
-        self.status_label.pack(pady=10)
+        self.status_label_point = tk.Label(control_frame, text="Точка вращения и масштабирования", font=("Arial", 12))
+        self.status_label_point.pack(pady=10)
 
-        # Поля для ввода пользовательской точки (x, y)
         self.x_entry = self.create_labeled_entry(control_frame, "X:")
         self.y_entry = self.create_labeled_entry(control_frame, "Y:")
 
@@ -43,34 +38,23 @@ class PolygonEditor:
         self.rotate_btn = tk.Button(control_frame, text="Поворот", command=self.rotate)
         self.rotate_btn.pack(fill=tk.X, padx=10, pady=5)
 
-        # Поле для ввода коэффициента масштабирования
-        self.scale_entry = self.create_labeled_entry(
-            control_frame, "Коэффициент масштаба:"
-        )
-        self.scale_btn = tk.Button(
-            control_frame, text="Масштабирование", command=self.scale
-        )
+        # Масштабирование
+        self.scale_entry = self.create_labeled_entry(control_frame, "Коэффициент масштаба:")
+        self.scale_btn = tk.Button(control_frame, text="Масштабирование", command=self.scale)
         self.scale_btn.pack(fill=tk.X, padx=10, pady=5)
 
-        self.clear_btn = tk.Button(
-            control_frame, text="Очистить сцену", command=self.clear_scene
-        )
+        self.clear_btn = tk.Button(control_frame, text="Очистить сцену", command=self.clear_scene)
         self.clear_btn.pack(fill=tk.X, padx=10, pady=5)
 
-        self.intersections_button = tk.Button(
-            control_frame,
-            text="Пересечения",
-            command=self.check_polygon_intersections,
-        )
+        self.intersections_button = tk.Button(control_frame, text="Пересечения", command=self.check_polygon_intersections)
         self.intersections_button.pack(fill=tk.X, padx=10, pady=5)
 
-        # Окно для сообщений
         self.message_window = tk.Text(control_frame, height=10, width=40)
         self.message_window.pack(padx=10, pady=10)
 
-        self.polygons = []  # список всех полигонов
-        self.current_polygon = []  # текущий строящийся полигон
-        self.selected_polygon = None  # выбранный полигон для трансформаций
+        self.polygons = []
+        self.current_polygon = []
+        self.selected_polygon = None
 
         self.canvas.bind("<Button-1>", self.add_point)
         self.canvas.bind("<Button-3>", self.check_point)
@@ -148,87 +132,59 @@ class PolygonEditor:
         self.message_window.delete(1.0, tk.END)
 
     def translate(self):
-        """Смещение полигона на dx, dy"""
-        print(self.selected_polygon)
-        if self.selected_polygon:
-            dx = float(self.dx_entry.get() or 0)
-            dy = float(self.dy_entry.get() or 0)
-            translation_point = self.get_input_point() or (0, 0)
-
-            translation_matrix = np.array([[1, 0, dx], [0, 1, dy], [0, 0, 1]])
-
-            for i, (x, y) in enumerate(self.selected_polygon):
-                point = np.array(
-                    [x - translation_point[0], y - translation_point[1], 1]
-                )
-                new_point = translation_matrix @ point
-                self.selected_polygon[i] = (
-                    new_point[0] + translation_point[0],
-                    new_point[1] + translation_point[1],
-                )
-
-            self.redraw()
+        if not self.selected_polygon:
+            return
+        dx = float(self.dx_entry.get() or 0)
+        dy = float(self.dy_entry.get() or 0)
+        translation_matrix = np.array([[1,0,dx],[0,1,dy],[0,0,1]])
+        for i, (x, y) in enumerate(self.selected_polygon):
+            p = np.array([x, y, 1])
+            new_p = translation_matrix @ p
+            self.selected_polygon[i] = (new_p[0], new_p[1])
+        self.redraw()
 
     def rotate(self):
-        """Поворот полигона на заданный угол"""
-        if self.selected_polygon:
-            angle = radians(float(self.angle_entry.get() or 0))
-            rotation_point = self.get_input_point() or self.get_polygon_center(
-                self.selected_polygon
-            )
-
-            rotation_matrix = np.array(
-                [[cos(angle), -sin(angle), 0], [sin(angle), cos(angle), 0], [0, 0, 1]]
-            )
-
-            for i, (x, y) in enumerate(self.selected_polygon):
-                translated_point = np.array(
-                    [x - rotation_point[0], y - rotation_point[1], 1]
-                )
-                rotated_point = rotation_matrix @ translated_point
-                self.selected_polygon[i] = (
-                    rotated_point[0] + rotation_point[0],
-                    rotated_point[1] + rotation_point[1],
-                )
-
-            self.redraw()
+        if not self.selected_polygon:
+            return
+        angle = radians(float(self.angle_entry.get() or 0))
+        point = self.get_input_point() or self.get_polygon_center(self.selected_polygon)
+        # матрица смещения к точке, поворот, обратное смещение
+        T1 = np.array([[1,0,-point[0]],[0,1,-point[1]],[0,0,1]])
+        R = np.array([[cos(angle),-sin(angle),0],[sin(angle),cos(angle),0],[0,0,1]])
+        T2 = np.array([[1,0,point[0]],[0,1,point[1]],[0,0,1]])
+        M = T2 @ R @ T1
+        for i, (x,y) in enumerate(self.selected_polygon):
+            p = np.array([x,y,1])
+            new_p = M @ p
+            self.selected_polygon[i] = (new_p[0], new_p[1])
+        self.redraw()
 
     def scale(self):
-        """Масштабирование полигона на заданный коэффициент"""
-        if self.selected_polygon:
-            scale_factor = float(self.scale_entry.get() or 1)
-            scaling_point = self.get_input_point() or self.get_polygon_center(
-                self.selected_polygon
-            )
-
-            scaling_matrix = np.array(
-                [[scale_factor, 0, 0], [0, scale_factor, 0], [0, 0, 1]]
-            )
-
-            for i, (x, y) in enumerate(self.selected_polygon):
-                translated_point = np.array(
-                    [x - scaling_point[0], y - scaling_point[1], 1]
-                )
-                scaled_point = scaling_matrix @ translated_point
-                self.selected_polygon[i] = (
-                    scaled_point[0] + scaling_point[0],
-                    scaled_point[1] + scaling_point[1],
-                )
-
-            self.redraw()
+        if not self.selected_polygon:
+            return
+        s = float(self.scale_entry.get() or 1)
+        point = self.get_input_point() or self.get_polygon_center(self.selected_polygon)
+        T1 = np.array([[1,0,-point[0]],[0,1,-point[1]],[0,0,1]])
+        S = np.array([[s,0,0],[0,s,0],[0,0,1]])
+        T2 = np.array([[1,0,point[0]],[0,1,point[1]],[0,0,1]])
+        M = T2 @ S @ T1
+        for i, (x,y) in enumerate(self.selected_polygon):
+            p = np.array([x,y,1])
+            new_p = M @ p
+            self.selected_polygon[i] = (new_p[0], new_p[1])
+        self.redraw()
 
     def get_polygon_center(self, polygon):
-        """Нахождение центра полигона"""
-        x_coords = [x for x, y in polygon]
-        y_coords = [y for x, y in polygon]
-        return sum(x_coords) / len(x_coords), sum(y_coords) / len(y_coords)
+        xs = [x for x,_ in polygon]
+        ys = [y for _,y in polygon]
+        return sum(xs)/len(xs), sum(ys)/len(ys)
 
     def redraw(self):
-        """Перерисовка всех полигонов"""
         self.canvas.delete("all")
         for polygon in self.polygons:
-            if len(polygon) > 1:
+            if len(polygon)>1:
                 self.canvas.create_polygon(polygon, outline="black", fill="", width=2)
+
 
     def check_point(self, event):
         """Проверка принадлежности точки полигону и классификация"""
