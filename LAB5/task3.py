@@ -35,54 +35,45 @@ class SplineEditor:
         self.circles.pop(index)
         self.update_curve()
 
-    def calculate_cubic_spline(self):
+    def calculate_bezier_curve(self):
         points = np.array(self.points)
-        x, y = points[:, 0], points[:, 1]
-        n = len(x) - 1  # количество сегментов
+        n = len(points)
+        if n < 2:
+            return np.array([])
 
-        # Коэффициенты для каждой кривой
-        h = np.diff(x)
-        alpha = np.zeros(n)
-        for i in range(1, n):
-            alpha[i] = (3 / h[i] * (y[i + 1] - y[i]) - 3 / h[i - 1] * (y[i] - y[i - 1]))
-
-        # Решаем систему линейных уравнений для нахождения c
-        l = np.ones(n + 1)
-        mu = np.zeros(n)
-        z = np.zeros(n + 1)
-        for i in range(1, n):
-            l[i] = 2 * (x[i + 1] - x[i - 1]) - h[i - 1] * mu[i - 1]
-            mu[i] = h[i] / l[i]
-            z[i] = (alpha[i] - h[i - 1] * z[i - 1]) / l[i]
-
-        # Вычисление коэффициентов c, b, и d для каждого сегмента
-        b = np.zeros(n)
-        c = np.zeros(n + 1)
-        d = np.zeros(n)
-        a = y[:-1]
-
-        for j in range(n - 1, -1, -1):
-            c[j] = z[j] - mu[j] * c[j + 1]
-            b[j] = (y[j + 1] - y[j]) / h[j] - h[j] * (c[j + 1] + 2 * c[j]) / 3
-            d[j] = (c[j + 1] - c[j]) / (3 * h[j])
-
-        # Создаем кривую
         curve_points = []
-        for i in range(n):
-            xs = np.linspace(x[i], x[i + 1], 20)
-            for xi in xs:
-                yi = (a[i] + b[i] * (xi - x[i]) + c[i] * (xi - x[i]) ** 2 + d[i] * (xi - x[i]) ** 3)
-                curve_points.append([xi, yi])
+        num_per_segment = 20
 
-        return np.array(curve_points)
+        for i in range(n - 1):
+            Pi = points[i]
+            Pi1 = points[i + 1]
+            if i == 0:
+                Pm1 = points[0]
+            else:
+                Pm1 = points[i - 1]
+            if i + 2 < n:
+                Pi2 = points[i + 2]
+            else:
+                Pi2 = points[i + 1]
+
+            C1 = Pi + (Pi1 - Pm1) / 6.0
+            C2 = Pi1 - (Pi2 - Pi) / 6.0
+
+            t = np.linspace(0, 1, num_per_segment)
+            t = t[:, np.newaxis]
+            seg = (1 - t) ** 3 * Pi + 3 * (1 - t) ** 2 * t * C1 + 3 * (1 - t) * t ** 2 * C2 + t ** 3 * Pi1
+            curve_points.append(seg)
+
+        return np.vstack(curve_points)
 
     def update_curve(self):
         if self.curve:
             self.curve.remove()
 
         if len(self.points) >= 2:
-            curve_points = self.calculate_cubic_spline()
-            self.curve, = self.ax.plot(curve_points[:, 0], curve_points[:, 1], 'blue')
+            curve_points = self.calculate_bezier_curve()
+            if curve_points.size > 0:
+                self.curve, = self.ax.plot(curve_points[:, 0], curve_points[:, 1], 'blue')
 
         self.fig.canvas.draw()
 
