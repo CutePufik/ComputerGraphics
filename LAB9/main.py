@@ -72,10 +72,12 @@ class OBJModel:
 
                         if len(face_vertices) >= 3:
                             face_data = {
-                                'vertices': face_vertices,
-                                'tex_coords': face_tex_coords if len(face_tex_coords) == len(face_vertices) else [],
-                                'normals': face_normals if len(face_normals) == len(face_vertices) else []
+                                'vertices': face_vertices
                             }
+                            if all(t >= 0 for t in face_tex_coords):
+                                face_data['tex_coords'] = face_tex_coords
+                            if all(n >= 0 for n in face_normals):
+                                face_data['normals'] = face_normals
                             faces.append(face_data)
 
             # Создаем полиэдр с дополнительными данными
@@ -130,23 +132,22 @@ class OBJModel:
                 for face in self.polyhedron.faces:
                     face_line = "f"
                     for i, vertex_index in enumerate(face.indices):
-                        if hasattr(face, 'tex_coords') and face.tex_coords and hasattr(face,
-                                                                                       'normals') and face.normals:
-                            # vertex/texture/normal
-                            tex_idx = face.tex_coords[i] + 1 if i < len(face.tex_coords) else ""
-                            normal_idx = face.normals[i] + 1 if i < len(face.normals) else ""
-                            face_line += f" {vertex_index + 1}/{tex_idx}/{normal_idx}"
-                        elif hasattr(face, 'tex_coords') and face.tex_coords:
-                            # vertex/texture
-                            tex_idx = face.tex_coords[i] + 1 if i < len(face.tex_coords) else ""
-                            face_line += f" {vertex_index + 1}/{tex_idx}"
-                        elif hasattr(face, 'normals') and face.normals:
-                            # vertex//normal
-                            normal_idx = face.normals[i] + 1 if i < len(face.normals) else ""
-                            face_line += f" {vertex_index + 1}//{normal_idx}"
+                        has_tex = i < len(face.tex_coords) and face.tex_coords[i] >= 0
+                        has_normal = i < len(face.normals) and face.normals[i] >= 0
+                        v_idx = vertex_index + 1
+                        if has_tex and has_normal:
+                            tex_idx = face.tex_coords[i] + 1
+                            normal_idx = face.normals[i] + 1
+                            part = f"{v_idx}/{tex_idx}/{normal_idx}"
+                        elif has_tex:
+                            tex_idx = face.tex_coords[i] + 1
+                            part = f"{v_idx}/{tex_idx}"
+                        elif has_normal:
+                            normal_idx = face.normals[i] + 1
+                            part = f"{v_idx}//{normal_idx}"
                         else:
-                            # только vertex
-                            face_line += f" {vertex_index + 1}"
+                            part = f"{v_idx}"
+                        face_line += f" {part}"
                     file.write(face_line + "\n")
 
             return True
@@ -535,7 +536,19 @@ class Polyhedron:
             face.compute_normal(vertices_3d, center)
 
     def compute_vertex_normals(self):
-        """Вычисляет нормали вершин как среднее нормалей прилегающих граней."""
+        """Вычисляет нормали вершин как среднее нормалей прилегающих граней или использует загруженные, если доступны."""
+        if hasattr(self, 'normals') and self.normals:
+            # Проверяем, все ли грани имеют валидные индексы нормалей
+            all_have_normals = all(
+                len(f.normals) == len(f.indices) and all(n >= 0 for n in f.normals) for f in self.faces
+            )
+            if all_have_normals:
+                # Используем загруженные нормали
+                for f in self.faces:
+                    f.vertex_normals = [normalize(np.array(self.normals[n])) for n in f.normals]
+                return
+
+        # Фоллбек: вычисляем как среднее нормалей граней
         vertices_3d = self.V[:3, :] / self.V[3, :]
         vertex_normals = [np.zeros(3) for _ in range(vertices_3d.shape[1])]
         vertex_face_count = [0 for _ in range(vertices_3d.shape[1])]
@@ -556,6 +569,11 @@ class Polyhedron:
         # Сохраняем нормали вершин в гранях
         for face in self.faces:
             face.vertex_normals = [vertex_normals[idx] for idx in face.indices]
+
+        # Сохраняем вычисленные нормали в self.normals и устанавливаем индексы в face.normals
+        self.normals = [n.tolist() for n in vertex_normals]
+        for face in self.faces:
+            face.normals = [idx for idx in face.indices]
 
     # --- основные методы ---
     def copy(self):
@@ -874,29 +892,30 @@ class ZBuffer:
         # Создаем массив изображения из color_buffer
         # Преобразуем float [0,1] в uint8 [0,255]
         image_array = (np.clip(self.color_buffer, 0.0, 1.0) * 255).astype(np.uint8)
-        
+
         # Создаем маску для видимых пикселей (где z < inf)
         mask = self.buffer < np.inf
-        
+
         # Создаем изображение с альфа-каналом (RGBA)
         # Фон будет прозрачным для невидимых пикселей
         height, width = self.buffer.shape
         image_rgba = np.zeros((height, width, 4), dtype=np.uint8)
         image_rgba[:, :, :3] = image_array  # RGB каналы
         image_rgba[:, :, 3] = (mask * 255).astype(np.uint8)  # Альфа-канал
-        
+
         # Создаем PIL Image из массива
         pil_image = Image.fromarray(image_rgba, 'RGBA')
-        
+
         # Конвертируем в PhotoImage для Tkinter
         photo = ImageTk.PhotoImage(pil_image)
-        
+
         # Очищаем canvas и рисуем изображение одним вызовом
         canvas.delete('all')
         canvas.create_image(0, 0, anchor=tk.NW, image=photo)
-        
+
         # Сохраняем ссылку на изображение, чтобы оно не было удалено сборщиком мусора
         canvas.image = photo
+
 
 # --------------------
 # Классы для освещения и материалов
@@ -1176,7 +1195,8 @@ def rasterize_triangle_phong_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex_n
                 zbuffer.test_and_set(x, y, z, color)
 
 
-def rasterize_triangle_textured_zbuffer(zbuffer, vertices_2d, vertices_3d, tex_coords, texture, vertex_normals=None, view_dir=None, light=None, material=None):
+def rasterize_triangle_textured_zbuffer(zbuffer, vertices_2d, vertices_3d, tex_coords, texture, vertex_normals=None,
+                                        view_dir=None, light=None, material=None):
     """Растеризует треугольник с наложением текстуры и z-буфером с учетом освещения."""
     if len(vertices_2d) != 3 or len(tex_coords) != 3:
         return
@@ -1224,16 +1244,16 @@ def rasterize_triangle_textured_zbuffer(zbuffer, vertices_2d, vertices_3d, tex_c
                 if light is not None and material is not None and vertex_normals is not None:
                     # Интерполируем нормаль
                     normal = interpolate_normal(vertex_normals, [w0, w1, w2])
-                    
+
                     # Вычисляем позицию точки в 3D
                     pos_x = w0 * vertices_3d[0][0] + w1 * vertices_3d[1][0] + w2 * vertices_3d[2][0]
                     pos_y = w0 * vertices_3d[0][1] + w1 * vertices_3d[1][1] + w2 * vertices_3d[2][1]
                     pos_z = z
                     pos_3d = np.array([pos_x, pos_y, pos_z])
-                    
+
                     # Направление к свету
                     light_dir = normalize(light.position - pos_3d)
-                    
+
                     # Вычисляем освещение по модели Ламберта
                     # Используем цвет текстуры как диффузный цвет материала
                     temp_material = Material(
@@ -1243,7 +1263,7 @@ def rasterize_triangle_textured_zbuffer(zbuffer, vertices_2d, vertices_3d, tex_c
                         specular=material.specular,
                         shininess=material.shininess
                     )
-                    
+
                     if view_dir is not None:
                         # Используем модель Фонга для более реалистичного освещения
                         color = phong_shading(normal, view_dir, light_dir, temp_material, light)
@@ -1296,7 +1316,7 @@ def project_points(P: Polyhedron, proj_mode: str, f: float = 1.8, view_vector=No
 
     # Получаем 3D координаты после преобразований (до проекции)
     vertices_3d = Q.V[:3, :] / Q.V[3, :]
-    
+
     # Пересчитываем нормали граней после преобразований для корректного отсечения
     # (хотя они уже преобразованы в apply(), пересчет гарантирует корректность)
     Q.compute_face_normals()
@@ -1335,7 +1355,7 @@ def project_points(P: Polyhedron, proj_mode: str, f: float = 1.8, view_vector=No
         # Применяем прямые повороты к вектору [0, 0, 1]
         R = Rx(alpha) @ Rz(beta)
         view_dir = normalize(R[:3, :3] @ np.array([0.0, 0.0, 1.0]))
-    
+
     # Фильтруем грани: оставляем только те, нормали которых направлены к камере
     visible_faces = []
     for face in Q.faces:
@@ -1346,7 +1366,7 @@ def project_points(P: Polyhedron, proj_mode: str, f: float = 1.8, view_vector=No
         dot_product = np.dot(face.normal, view_dir)
         if dot_product > 0:
             visible_faces.append(face)
-    
+
     edges = Q.edges()
 
     return (x, y, edges, visible_faces, Q, vertices_3d)
@@ -2013,36 +2033,43 @@ class App:
                     view_dir = np.array([0, 0, 1])  # Направление взгляда для освещения
                     vertex_normals = face.vertex_normals if face.vertex_normals else [face.normal] * len(face.indices)
 
-                    # Генерируем текстурные координаты если их нет
-                    if not hasattr(face, 'tex_coords') or not face.tex_coords:
+                    # Проверяем наличие валидных текстурных координат
+                    use_loaded_tex = face.tex_coords and len(face.tex_coords) == len(face.indices) and all(
+                        t >= 0 for t in face.tex_coords)
+
+                    if use_loaded_tex:
+                        tex_coords = [np.array(transformed_poly.tex_coords[tc_idx], dtype=float) for tc_idx in
+                                      face.tex_coords]
+                    else:
+                        # Генерируем текстурные координаты если их нет или они невалидны
                         # Генерируем текстурные координаты на основе локальной системы координат грани
                         # Используем рёбра грани как базисные векторы для стабильности при поворотах
                         if len(face.indices) >= 3:
                             # Берем первую вершину как начало координат
                             v0 = vertices_3d[:, face.indices[0]]
-                            
+
                             # Первое ребро (от v0 к v1) - направление U
                             v1 = vertices_3d[:, face.indices[1]]
                             edge_u_raw = v1 - v0
                             len_u = np.linalg.norm(edge_u_raw)
-                            
+
                             if len_u < 1e-10:
                                 # Если первое ребро нулевое, используем запасной вариант
                                 edge_u = np.array([1.0, 0.0, 0.0])
                                 len_u = 1.0
                             else:
                                 edge_u = edge_u_raw / len_u  # Нормализованный вектор для направления
-                            
+
                             # Второе ребро (от v0 к v2) - направление V
                             v2 = vertices_3d[:, face.indices[2]]
                             edge_v_raw = v2 - v0
-                            
+
                             # Ортогонализуем edge_v относительно edge_u (процесс Грама-Шмидта)
                             # Проецируем edge_v_raw на edge_u и вычитаем проекцию
                             proj_v_on_u = np.dot(edge_v_raw, edge_u) * edge_u
                             edge_v_ortho = edge_v_raw - proj_v_on_u
                             len_v = np.linalg.norm(edge_v_ortho)
-                            
+
                             if len_v < 1e-10:
                                 # Если edge_v параллелен edge_u, используем нормаль грани
                                 face_normal = face.normal if face.normal is not None else np.array([0, 0, 1])
@@ -2060,36 +2087,36 @@ class App:
                                     if len_v < 1e-10:
                                         edge_v_ortho = np.array([0.0, 1.0, 0.0])
                                         len_v = 1.0
-                            
+
                             edge_v = edge_v_ortho / len_v  # Нормализованный вектор для направления
-                            
+
                             # Теперь проецируем все вершины грани на локальную систему координат (edge_u, edge_v)
                             tex_coords = []
                             for vertex_idx in face.indices:
                                 vertex_pos = vertices_3d[:, vertex_idx]
                                 # Вектор от v0 к текущей вершине
                                 vec = vertex_pos - v0
-                                
+
                                 # Проецируем на edge_u и edge_v (используем нормализованные векторы)
                                 u = np.dot(vec, edge_u)
                                 v = np.dot(vec, edge_v)
-                                
+
                                 tex_coords.append([u, v])
-                            
+
                             # Находим минимальные и максимальные значения для нормализации к [0, 1]
                             tex_coords_array = np.array(tex_coords)
                             min_u, min_v = np.min(tex_coords_array, axis=0)
                             max_u, max_v = np.max(tex_coords_array, axis=0)
-                            
+
                             range_u = max_u - min_u
                             range_v = max_v - min_v
-                            
+
                             # Избегаем деления на ноль
                             if range_u < 1e-10:
                                 range_u = 1.0
                             if range_v < 1e-10:
                                 range_v = 1.0
-                            
+
                             # Нормализуем к [0, 1]
                             for i in range(len(tex_coords)):
                                 tex_coords[i][0] = float((tex_coords[i][0] - min_u) / range_u)
@@ -2097,13 +2124,11 @@ class App:
                         else:
                             # Для граней с менее чем 3 вершинами используем простые координаты
                             tex_coords = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]][:len(face.indices)]
-                    else:
-                        tex_coords = [np.array(self.model.tex_coords[tc_idx], dtype=float) for tc_idx in
-                                      face.tex_coords]
 
                     if len(face.indices) == 3:
                         rasterize_triangle_textured_zbuffer(zbuffer, face_vertices_2d, face_vertices_3d, tex_coords,
-                                                            texture, vertex_normals, view_dir, self.light, self.material)
+                                                            texture, vertex_normals, view_dir, self.light,
+                                                            self.material)
                     elif len(face.indices) == 4:
                         tri1_2d = [face_vertices_2d[0], face_vertices_2d[1], face_vertices_2d[2]]
                         tri1_3d = [face_vertices_3d[0], face_vertices_3d[1], face_vertices_3d[2]]
