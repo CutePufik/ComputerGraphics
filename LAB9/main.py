@@ -960,19 +960,57 @@ def phong_shading(normal, view_dir, light_dir, material, light):
     return ambient_color + diffuse_color + specular_color
 
 
+def toon_shading(normal, light_dir, material, light):
+    """Вычисляет освещение по модели туншейдинга (toon shading).
+    
+    Туншейдинг - это пороговое затенение, которое создает мультяшный эффект
+    с дискретными уровнями освещённости вместо плавного перехода.
+    """
+    # Вычисляем косинус угла между нормалью и направлением к свету
+    cos_theta = max(0.0, np.dot(normal, light_dir))
+    
+    # Определяем дискретные уровни освещённости (пороговые значения)
+    # Создаем 5 уровней яркости для более выразительного мультяшного эффекта
+    if cos_theta > 0.8:
+        intensity = 1.0  # Самый яркий (прямой свет)
+    elif cos_theta > 0.6:
+        intensity = 0.8  # Яркий
+    elif cos_theta > 0.4:
+        intensity = 0.6  # Средний
+    elif cos_theta > 0.2:
+        intensity = 0.4  # Тёмный
+    else:
+        intensity = 0.25  # Самый тёмный (но не чёрный)
+    
+    # Применяем дискретную интенсивность к цвету
+    # Уменьшаем вклад ambient для более выраженного эффекта
+    ambient_color = material.ambient * 0.3 * material.color
+    toon_color = intensity * material.diffuse * material.color * light.color * light.intensity
+    
+    return ambient_color + toon_color
+
+
 def interpolate_color(colors, weights):
-    """Интерполирует цвет между вершинами."""
-    result = np.zeros(3)
+    """Интерполирует цвет между вершинами с барицентрической интерполяцией.
+    
+    Используется для метода Гуро - интерполяция цвета между цветами вершин.
+    """
+    result = np.zeros(3, dtype=float)
     for i, color in enumerate(colors):
-        result += weights[i] * color
+        result += weights[i] * np.array(color, dtype=float)
     return np.clip(result, 0.0, 1.0)
 
 
 def interpolate_normal(normals, weights):
-    """Интерполирует нормаль между вершинами."""
-    result = np.zeros(3)
+    """Интерполирует нормаль между вершинами с последующей нормализацией.
+    
+    Используется для метода Фонга - интерполяция нормалей между вершинами
+    с обязательной нормализацией результата.
+    """
+    result = np.zeros(3, dtype=float)
     for i, normal in enumerate(normals):
-        result += weights[i] * normal
+        result += weights[i] * np.array(normal, dtype=float)
+    # ВАЖНО: обязательная нормализация интерполированной нормали
     return normalize(result)
 
 
@@ -1079,7 +1117,16 @@ def get_texture_color(texture, u, v):
 # --------------------
 
 def rasterize_triangle_gouraud_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex_colors):
-    """Растеризует треугольник с интерполяцией цвета по Гуро и z-буфером."""
+    """Растеризует треугольник с интерполяцией цвета по Гуро и z-буфером.
+    
+    Метод Гуро (Gouraud Shading):
+    1. Вычисляет цвет в каждой вершине по модели Ламберта (диффузное отражение)
+    2. Интерполирует цвет между вершинами методом билинейной (барицентрической) интерполяции
+    
+    Билинейная интерполяция реализуется через барицентрические координаты:
+    - w0, w1, w2 - барицентрические веса для трёх вершин треугольника
+    - color(x,y) = w0*color0 + w1*color1 + w2*color2
+    """
     if len(vertices_2d) != 3 or len(vertex_colors) != 3:
         return
 
@@ -1092,30 +1139,33 @@ def rasterize_triangle_gouraud_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex
     min_y = max(0, int(min(y0, y1, y2)))
     max_y = min(zbuffer.height, int(max(y0, y1, y2)) + 1)
 
-    def compute_weights(x, y):
+    def compute_barycentric_weights(x, y):
+        """Вычисляет барицентрические координаты для точки (x, y) в треугольнике."""
         denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
         if abs(denom) < 1e-10:
             return None
 
+        # Барицентрические координаты (веса)
         w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / denom
         w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / denom
-        w2 = 1 - w0 - w1
+        w2 = 1.0 - w0 - w1
 
         return w0, w1, w2
 
     for y in range(min_y, max_y):
         for x in range(min_x, max_x):
-            weights = compute_weights(x, y)
+            weights = compute_barycentric_weights(x + 0.5, y + 0.5)  # Центр пикселя
             if weights is None:
                 continue
 
             w0, w1, w2 = weights
 
+            # Проверка, что точка внутри треугольника
             if w0 >= 0 and w1 >= 0 and w2 >= 0:
-                # Интерполируем z-координату
+                # Билинейная интерполяция z-координаты
                 z = w0 * z0 + w1 * z1 + w2 * z2
 
-                # Интерполируем цвет
+                # Билинейная интерполяция цвета (метод Гуро)
                 color = interpolate_color(vertex_colors, [w0, w1, w2])
 
                 # Тестируем и устанавливаем в z-буфер
@@ -1123,7 +1173,17 @@ def rasterize_triangle_gouraud_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex
 
 
 def rasterize_triangle_phong_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex_normals, view_dir, light, material):
-    """Растеризует треугольник с интерполяцией нормалей по Фонгу и z-буфером."""
+    """Растеризует треугольник с интерполяцией нормалей по Фонгу и туншейдингом.
+    
+    Метод Фонга (Phong Shading) с туншейдингом:
+    1. Интерполирует нормали между вершинами методом билинейной (барицентрической) интерполяции
+    2. Нормализует интерполированную нормаль для каждого пикселя
+    3. Вычисляет цвет по модели туншейдинга с интерполированной нормалью
+    
+    Билинейная интерполяция нормалей:
+    - normal(x,y) = normalize(w0*normal0 + w1*normal1 + w2*normal2)
+    - ВАЖНО: нормализация необходима после интерполяции!
+    """
     if len(vertices_2d) != 3 or len(vertex_normals) != 3:
         return
 
@@ -1136,41 +1196,46 @@ def rasterize_triangle_phong_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex_n
     min_y = max(0, int(min(y0, y1, y2)))
     max_y = min(zbuffer.height, int(max(y0, y1, y2)) + 1)
 
-    def compute_weights(x, y):
+    def compute_barycentric_weights(x, y):
+        """Вычисляет барицентрические координаты для точки (x, y) в треугольнике."""
         denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
         if abs(denom) < 1e-10:
             return None
 
+        # Барицентрические координаты (веса)
         w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / denom
         w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / denom
-        w2 = 1 - w0 - w1
+        w2 = 1.0 - w0 - w1
 
         return w0, w1, w2
 
     for y in range(min_y, max_y):
         for x in range(min_x, max_x):
-            weights = compute_weights(x, y)
+            weights = compute_barycentric_weights(x + 0.5, y + 0.5)  # Центр пикселя
             if weights is None:
                 continue
 
             w0, w1, w2 = weights
 
+            # Проверка, что точка внутри треугольника
             if w0 >= 0 and w1 >= 0 and w2 >= 0:
-                # Интерполируем z-координату
+                # Билинейная интерполяция z-координаты
                 z = w0 * z0 + w1 * z1 + w2 * z2
 
-                # Интерполируем нормаль
+                # Билинейная интерполяция нормали с последующей нормализацией (метод Фонга)
                 normal = interpolate_normal(vertex_normals, [w0, w1, w2])
 
-                # Вычисляем освещение по Фонгу
-                # Используем интерполированную позицию для направления к свету
+                # Вычисляем интерполированную позицию для точного направления к свету
                 pos_x = w0 * vertices_3d[0][0] + w1 * vertices_3d[1][0] + w2 * vertices_3d[2][0]
                 pos_y = w0 * vertices_3d[0][1] + w1 * vertices_3d[1][1] + w2 * vertices_3d[2][1]
                 pos_z = z
-                pos_3d = np.array([pos_x, pos_y, pos_z])
+                pos_3d = np.array([pos_x, pos_y, pos_z], dtype=float)
 
+                # Направление от точки к источнику света
                 light_dir = normalize(light.position - pos_3d)
-                color = phong_shading(normal, view_dir, light_dir, material, light)
+                
+                # Вычисляем цвет по модели туншейдинга с интерполированной нормалью
+                color = toon_shading(normal, light_dir, material, light)
 
                 # Тестируем и устанавливаем в z-буфер
                 zbuffer.test_and_set(x, y, z, color)
@@ -1989,6 +2054,9 @@ class App:
                         rasterize_triangle_gouraud_zbuffer(zbuffer, tri2_2d, tri2_3d, tri2_colors)
 
                 elif render_mode == 'phong':
+                    # Режим Фонга с туншейдингом:
+                    # 1. Интерполируем нормали между вершинами (метод Фонга)
+                    # 2. Применяем туншейдинг к каждому пикселю с интерполированной нормалью
                     view_dir = np.array([0, 0, 1])  # Упрощенное направление взгляда
                     vertex_normals = face.vertex_normals if face.vertex_normals else [face.normal] * len(face.indices)
 
@@ -1996,6 +2064,7 @@ class App:
                         rasterize_triangle_phong_zbuffer(zbuffer, face_vertices_2d, face_vertices_3d, vertex_normals,
                                                          view_dir, self.light, self.material)
                     elif len(face.indices) == 4:
+                        # Разбиваем четырехугольник на два треугольника
                         tri1_2d = [face_vertices_2d[0], face_vertices_2d[1], face_vertices_2d[2]]
                         tri1_3d = [face_vertices_3d[0], face_vertices_3d[1], face_vertices_3d[2]]
                         tri1_normals = [vertex_normals[0], vertex_normals[1], vertex_normals[2]]
