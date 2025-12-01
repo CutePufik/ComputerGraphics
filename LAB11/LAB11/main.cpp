@@ -1,4 +1,4 @@
-// main.cpp
+﻿// main.cpp
 #include <GL/glew.h>
 #include <SFML/Window.hpp>
 #include <SFML/OpenGL.hpp>
@@ -260,7 +260,7 @@ int main()
         {1.0f, 1.0f, 0.0f}, // вершина 4 - жёлтая
         {1.0f, 0.0f, 1.0f}, // вершина 5 - фиолетовая
         {1.0f, 0.0f, 0.0f}  // последняя вершина повторяет первую для замыкания
-            };
+    };
     // центр
     float cr_center = (colors[0][0] + colors[1][0] + colors[2][0] + colors[3][0] + colors[4][0]) / 5;
     float cg_center = (colors[0][1] + colors[1][1] + colors[2][1] + colors[3][1] + colors[4][1]) / 5;
@@ -272,7 +272,7 @@ int main()
 
     for (int i = 0; i <= pSides; ++i)
     {
-        float ang = (float)i / pSides * 2.0f * M_PI  + (M_PI / 2.0f);
+        float ang = (float)i / pSides * 2.0f * M_PI + (M_PI / 2.0f);
         float x = cosf(ang) * pRadius;
         float y = sinf(ang) * pRadius;
 
