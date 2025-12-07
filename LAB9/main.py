@@ -1242,85 +1242,130 @@ def rasterize_triangle_phong_zbuffer(zbuffer, vertices_2d, vertices_3d, vertex_n
 
 
 def rasterize_triangle_textured_zbuffer(zbuffer, vertices_2d, vertices_3d, tex_coords, texture, vertex_normals=None, view_dir=None, light=None, material=None):
-    """Растеризует треугольник с наложением текстуры и z-буфером с учетом освещения."""
+    """
+    Растеризует треугольник с ПЕРСПЕКТИВНО-КОРРЕКТНЫМ наложением текстуры.
+    """
     if len(vertices_2d) != 3 or len(tex_coords) != 3:
         return
 
-    x0, y0, z0 = vertices_2d[0][0], vertices_2d[0][1], vertices_3d[0][2]
-    x1, y1, z1 = vertices_2d[1][0], vertices_2d[1][1], vertices_3d[1][2]
-    x2, y2, z2 = vertices_2d[2][0], vertices_2d[2][1], vertices_3d[2][2]
+    # Распаковка координат
+    # ВАЖНО: Нам нужна глубина (depth) от камеры.
+    # Если мы в режиме камеры, Z отрицательный. Глубина = -Z.
+    # Если в режиме 'perspective' (сдвиг на +5), Z положительный.
+    # Чтобы унифицировать, берем abs(z) или просто работаем с предположением, что камера смотрит вдоль Z.
+    # Для корректной интерполяции нам нужны значения 1/z.
+    
+    # Получаем глубину вершин (избегаем деления на 0)
+    z0 = vertices_3d[0][2]
+    z1 = vertices_3d[1][2]
+    z2 = vertices_3d[2][2]
+    
+    # Определяем, какая ориентация оси Z (зависит от режима проекции в project_points)
+    # Если все Z отрицательные (режим камеры), инвертируем для Z-буфера, чтобы "меньше" значило "ближе"
+    # Однако, Z-буфер хранит "расстояние". Используем abs() для надежности дистанции.
+    depth0 = abs(z0) if abs(z0) > 1e-5 else 1e-5
+    depth1 = abs(z1) if abs(z1) > 1e-5 else 1e-5
+    depth2 = abs(z2) if abs(z2) > 1e-5 else 1e-5
 
+    x0, y0 = vertices_2d[0]
+    x1, y1 = vertices_2d[1]
+    x2, y2 = vertices_2d[2]
+
+    # Предварительно вычисляем значения для перспективной коррекции
+    # Интерполировать будем: 1/z, u/z, v/z
+    inv_z0 = 1.0 / depth0
+    inv_z1 = 1.0 / depth1
+    inv_z2 = 1.0 / depth2
+
+    u0, v0 = tex_coords[0]
+    u1, v1 = tex_coords[1]
+    u2, v2 = tex_coords[2]
+
+    uz0 = u0 * inv_z0
+    vz0 = v0 * inv_z0
+    uz1 = u1 * inv_z1
+    vz1 = v1 * inv_z1
+    uz2 = u2 * inv_z2
+    vz2 = v2 * inv_z2
+
+    # Bounding box
     min_x = max(0, int(min(x0, x1, x2)))
     max_x = min(zbuffer.width, int(max(x0, x1, x2)) + 1)
     min_y = max(0, int(min(y0, y1, y2)))
     max_y = min(zbuffer.height, int(max(y0, y1, y2)) + 1)
 
-    def compute_weights(x, y):
-        denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
-        if abs(denom) < 1e-10:
-            return None
-
-        w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / denom
-        w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / denom
-        w2 = 1 - w0 - w1
-
-        return w0, w1, w2
+    # Оптимизация: выносим константы для барицентрических координат
+    denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+    if abs(denom) < 1e-10:
+        return
+    inv_denom = 1.0 / denom
 
     for y in range(min_y, max_y):
+        # Центр пикселя
+        py = y + 0.5
         for x in range(min_x, max_x):
-            weights = compute_weights(x, y)
-            if weights is None:
-                continue
-
-            w0, w1, w2 = weights
+            px = x + 0.5
+            
+            # Вычисляем веса
+            w0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) * inv_denom
+            w1 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) * inv_denom
+            w2 = 1.0 - w0 - w1
 
             if w0 >= 0 and w1 >= 0 and w2 >= 0:
-                # Интерполируем z-координату
-                z = w0 * z0 + w1 * z1 + w2 * z2
+                # 1. Перспективно-корректная интерполяция глубины (Z-буфер)
+                # Z в экранном пространстве интерполируется как 1/z
+                current_inv_z = w0 * inv_z0 + w1 * inv_z1 + w2 * inv_z2
+                
+                if current_inv_z == 0: continue
+                z_current = 1.0 / current_inv_z # Реальная глубина пикселя
 
-                # Интерполируем текстурные координаты
-                tex_coord = interpolate_tex_coord(tex_coords, [w0, w1, w2])
-                u, v = tex_coord
+                # Проверка Z-буфера
+                # Мы используем положительную глубину, поэтому стандартная проверка (меньше = ближе) работает
+                if z_current < zbuffer.buffer[y, x]:
+                    
+                    # 2. Перспективная интерполяция текстурных координат
+                    # U = (u/z)_interp / (1/z)_interp
+                    u_interp = (w0 * uz0 + w1 * uz1 + w2 * uz2) * z_current
+                    v_interp = (w0 * vz0 + w1 * vz1 + w2 * vz2) * z_current
+                    
+                    # Получаем цвет текстуры
+                    color = get_texture_color(texture, u_interp, v_interp)
 
-                # Получаем цвет из текстуры
-                texture_color = get_texture_color(texture, u, v)
-
-                # Применяем освещение к текстуре
-                if light is not None and material is not None and vertex_normals is not None:
-                    # Интерполируем нормаль
-                    normal = interpolate_normal(vertex_normals, [w0, w1, w2])
-                    
-                    # Вычисляем позицию точки в 3D
-                    pos_x = w0 * vertices_3d[0][0] + w1 * vertices_3d[1][0] + w2 * vertices_3d[2][0]
-                    pos_y = w0 * vertices_3d[0][1] + w1 * vertices_3d[1][1] + w2 * vertices_3d[2][1]
-                    pos_z = z
-                    pos_3d = np.array([pos_x, pos_y, pos_z])
-                    
-                    # Направление к свету
-                    light_dir = normalize(light.position - pos_3d)
-                    
-                    # Вычисляем освещение по модели Ламберта
-                    # Используем цвет текстуры как диффузный цвет материала
-                    temp_material = Material(
-                        color=texture_color,
-                        ambient=material.ambient,
-                        diffuse=material.diffuse,
-                        specular=material.specular,
-                        shininess=material.shininess
-                    )
-                    
-                    if view_dir is not None:
-                        # Используем модель Фонга для более реалистичного освещения
-                        color = phong_shading(normal, view_dir, light_dir, temp_material, light)
+                    # 3. Освещение (по желанию, как в оригинале)
+                    if light is not None and material is not None and vertex_normals is not None:
+                        # Нормаль можно интерполировать линейно (приближение)
+                        # Для идеальной точности тоже нужна коррекция, но для нормалей это менее критично
+                        normal = interpolate_normal(vertex_normals, [w0, w1, w2])
+                        
+                        # Позиция для света
+                        # Линейная интерполяция координат тоже допустима для расчёта света
+                        pos_x = w0 * vertices_3d[0][0] + w1 * vertices_3d[1][0] + w2 * vertices_3d[2][0]
+                        pos_y = w0 * vertices_3d[0][1] + w1 * vertices_3d[1][1] + w2 * vertices_3d[2][1]
+                        pos_z = w0 * vertices_3d[0][2] + w1 * vertices_3d[1][2] + w2 * vertices_3d[2][2]
+                        pos_3d = np.array([pos_x, pos_y, pos_z])
+                        
+                        light_dir = normalize(light.position - pos_3d)
+                        
+                        # Создаем временный материал, где diffuse цвет берется из текстуры
+                        tex_material = Material(
+                            color=color, # Цвет текстуры вместо цвета материала
+                            ambient=material.ambient,
+                            diffuse=material.diffuse,
+                            specular=material.specular,
+                            shininess=material.shininess
+                        )
+                        
+                        if view_dir is not None:
+                            # Фонг (с использованием текстуры как диффузного цвета)
+                            final_color = phong_shading(normal, view_dir, light_dir, tex_material, light)
+                        else:
+                            final_color = lambert_shading(normal, light_dir, tex_material, light)
                     else:
-                        # Используем модель Ламберта
-                        color = lambert_shading(normal, light_dir, temp_material, light)
-                else:
-                    # Если освещение не задано, используем цвет текстуры напрямую
-                    color = texture_color
+                        final_color = color
 
-                # Тестируем и устанавливаем в z-буфер
-                zbuffer.test_and_set(x, y, z, color)
+                    # Запись в буфер
+                    zbuffer.buffer[y, x] = z_current
+                    zbuffer.color_buffer[y, x] = np.clip(final_color, 0.0, 1.0)
 
 
 # --------------------

@@ -211,11 +211,11 @@ int main()
 
     // 2) Веер: triangle fan (центр + несколько вершин дугой)
     //    центр (0,0)
-    const int fanSegments = 5; // количество "лопастей" — можно менять
+    const int fanSegments = 100; 
     std::vector<float> fan;
     // центр
     fan.push_back(-0.0f); fan.push_back(0.0f); fan.push_back(0.0f);
-    fan.push_back(0.0f); fan.push_back(1.0f); fan.push_back(0.0f); // белый центр
+    fan.push_back(0.0f); fan.push_back(1.0f); fan.push_back(0.0f); 
     float radius = 0.4f;
     float startAngle = -M_PI / 4.0f;
     float sweep = M_PI / 3.0f; // ширина веера
