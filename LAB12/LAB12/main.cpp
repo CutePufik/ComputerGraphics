@@ -491,8 +491,8 @@ int main()
     Mesh2D meshCircle = CreateMesh2D(circleVerts, GL_TRIANGLE_FAN);
 
     // --- текстуры ---
-    GLuint tex1 = LoadTextureFromFile("texture1.png");
-    GLuint tex2 = LoadTextureFromFile("texture2.png");
+    GLuint tex1 = LoadTextureFromFile("вазина.jpg");
+    GLuint tex2 = LoadTextureFromFile("мопс.jpg");
 
     CheckOpenGLError("setup");
 
