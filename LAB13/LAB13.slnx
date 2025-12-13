@@ -3,5 +3,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="LAB13/LAB13.vcxproj" />
+  <Folder Name="/Элементы решения/">
+    <File Path="LAB13/Hamburger.obj" />
+    <File Path="LAB13/Hamburger_BaseColor.png" />
+  </Folder>
+  <Project Path="LAB13/LAB13.vcxproj" Id="ba232b6b-49d0-4efc-b7a8-9e34680d9fd2" />
 </Solution>

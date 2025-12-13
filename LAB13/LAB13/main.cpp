@@ -451,13 +451,13 @@ int main()
 
     // --- загрузка OBJ ---
     std::vector<float> modelData;
-    if (!LoadOBJ("model.obj", modelData))
+    if (!LoadOBJ("Hamburger.obj", modelData))
         return 1;
 
     Mesh modelMesh = CreateMeshFromInterleaved(modelData);
 
     // --- текстура для всех объектов (можно потом добавить разные) ---
-    GLuint tex = LoadTextureFromFile("model_diffuse.png");
+    GLuint tex = LoadTextureFromFile("Hamburger_BaseColor.png");
     if (!tex) return 1;
 
     // --- камера ---
