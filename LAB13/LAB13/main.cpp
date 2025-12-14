@@ -517,8 +517,8 @@ int main()
         float orbitSpeed = frand(0.5f, 1.5f) / orbitRadius;
         float selfSpeed = frand(0.3f, 1.5f);
         float scale = frand(0.4f, 1.5f);
-        float orbitAngle = frand(0.0f, 360.0f);
-        float selfAngle = frand(0.0f, 360.0f);
+        float orbitAngle = frand(0.0f, 2.0f * (float)M_PI);
+        float selfAngle = frand(0.0f, 2.0f * (float)M_PI);
 
         planets.push_back({
             orbitRadius,
