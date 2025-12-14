@@ -461,7 +461,7 @@ int main()
     if (!tex) return 1;
 
     // --- камера ---
-    Vec3 camPos(0.0f, 3.0f, 12.0f);
+    Vec3 camPos(0.0f, 17.0f, 70.0f);
     Vec3 worldUp(0.0f, 1.0f, 0.0f);
     float yaw = -90.0f;       // в градусах
     float pitch = -15.0f;
