@@ -4,6 +4,7 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Элементы решения/">
+    <File Path="Hamburger.obj" />
     <File Path="LAB13/Hamburger.obj" />
     <File Path="LAB13/Hamburger_BaseColor.png" />
   </Folder>

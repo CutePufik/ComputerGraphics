@@ -513,7 +513,7 @@ int main()
     planets.push_back({ 0.0f, 0.0f, 0.2f, 4.0f });   // Солнце — в центре, большое
 
     for (int i = 0; i < planetCount; i++) {
-        float orbitRadius = i / 2 + 4.0f;
+        float orbitRadius = 20.0f + i * 4.0f;
         float orbitSpeed = frand(0.5f, 1.5f) / orbitRadius;
         float selfSpeed = frand(0.3f, 1.5f);
         float scale = frand(0.4f, 1.5f);
