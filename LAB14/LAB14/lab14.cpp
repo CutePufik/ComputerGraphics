@@ -313,7 +313,7 @@ bool LoadOBJ_PosUVNorm(const std::string& filename, std::vector<float>& out)
                     out.push_back(tc.x); out.push_back(tc.y);
                     out.push_back(nn.x); out.push_back(nn.y); out.push_back(nn.z);
                 };
-            
+
             int v0, t0, n0;
             ParseFaceVertex(tok[0], v0, t0, n0);
             for (size_t i = 1; i + 1 < tok.size(); ++i)
