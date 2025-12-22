@@ -208,7 +208,7 @@ GLuint LoadTextureFromFile(const std::string& filename)
         std::cout << "Failed to load texture: " << filename << std::endl;
         return 0;
     }
-    img.flipVertically();
+    /*img.flipVertically();*/
 
     GLuint tex;
     glGenTextures(1, &tex);

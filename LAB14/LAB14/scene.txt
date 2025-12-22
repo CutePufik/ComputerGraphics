@@ -1,11 +1,5 @@
-models/plane.obj       textures/ground.png      0.0 -1.0  0.0    0.0     20.0   1.0   20.0   phong
-
-models/teapot.obj      textures/metal.png       0.0  0.0 -4.0    0.0      1.0   1.0    1.0   gooch
-
-models/cube.obj        textures/crate.png      -3.0  0.0 -5.0   20.0      1.5   1.5    1.5   phong
-
-models/sphere.obj      textures/earth.png       3.0  0.5 -5.5    0.0      1.3   1.3    1.3   toon
-
-models/torus.obj       textures/gold.png        0.0  0.2 -2.0   45.0      1.2   1.2    1.2   gooch
-
-models/monkey.obj      textures/monkey.png      0.0  2.0 -7.0  -30.0      1.0   1.0    1.0   toon
+models/teapot.obj textures/teapot.png  0 0 0   0        0.5 0.5 0.5    phong
+models/sphere.obj textures/sphere.png  3 0 0  20      1 1 1    toon
+models/model.obj textures/model.png -3 0 0 -30     1 1 1   gooch
+models/cone.obj textures/cone.png  0 0 3   45      1 1 1    phong
+models/monkey.obj textures/monkey.png  0 0 -3  180     0.005 0.005 0.005    toon

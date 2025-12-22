@@ -191,11 +191,6 @@ Mat4 operator*(const Mat4& a, const Mat4& b)
     return r;
 }
 
-// (mat3) normal matrix = inverse(transpose(mat3(model)))
-// но раз у тебя почти всегда только scale+rot+trans без shear,
-// можно упрощённо: нормали в мировые через mat3(model) и normalize.
-// Ниже я делаю нормаль через mat3(model) (как часто в лабах).
-
 // ======================= TEXTURE =======================
 GLuint LoadTextureFromFile(const std::string& filename)
 {
@@ -313,7 +308,7 @@ bool LoadOBJ_PosUVNorm(const std::string& filename, std::vector<float>& out)
                     out.push_back(tc.x); out.push_back(tc.y);
                     out.push_back(nn.x); out.push_back(nn.y); out.push_back(nn.z);
                 };
-
+            
             int v0, t0, n0;
             ParseFaceVertex(tok[0], v0, t0, n0);
             for (size_t i = 1; i + 1 < tok.size(); ++i)
@@ -480,9 +475,9 @@ layout(location=0) in vec3 aPos;
 layout(location=1) in vec2 aUV;
 layout(location=2) in vec3 aNormal;
 
-uniform mat4 uModel;
-uniform mat4 uView;
-uniform mat4 uProj;
+uniform mat4 uModel;//позиция/поворот/масштаб объекта
+uniform mat4 uView;//положение камеры
+uniform mat4 uProj;//перспектива
 
 out vec2 vUV;
 out vec3 vWorldPos;
@@ -603,8 +598,8 @@ vec3 Shade(vec3 baseColor, vec3 N, vec3 V, vec3 L, vec3 lightColor, float intens
 void main()
 {
     vec3 baseColor = texture(uTex, vUV).rgb;
-    vec3 N = normalize(vWorldN);
-    vec3 V = normalize(uViewPos - vWorldPos);
+    vec3 N = normalize(vWorldN);//нормаль
+    vec3 V = normalize(uViewPos - vWorldPos);//направление на камеру
 
     vec3 result = vec3(0.0);
 
